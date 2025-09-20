@@ -1,4 +1,13 @@
-# VoiceMaster Pro - Live Streaming TTS
+# Vo## Features
+
+- 🎤 Custom voice selection from your ElevenLabs account
+- ⚡ Quick phrase buttons for common streaming messages
+- 💾 **TTS Favorites System** - Save frequently used comments with specific voices
+- 📁 **Overlay Archive** - Automatically numbered overlay files for easy tracking
+- 🎮 Keyboard shortcuts for hands-free operation
+- 📺 OBS overlay integration with archive support
+- 🔊 Built-in audio playback
+- 🎨 Dark theme optimized for streaming setupsr Pro - Live Streaming TTS
 
 A professional Text-to-Speech application for live streaming with custom ElevenLabs voices.
 
@@ -94,7 +103,24 @@ python voicemaster_gui.py
 - **Text Input**: Enter text to convert to speech
 - **Generate Button**: Create speech (Ctrl+Enter)
 - **Play/Stop**: Control audio playback (F1/F2)
-- **Quick Phrases**: Pre-made streaming messages
+- **Quick Phrases**: Pre-made streaming messages + your saved favorites
+- **💾 Save as Favorite**: Save current text + voice combination
+- **🔄 Refresh**: Update favorites list
+- **Right-click favorites**: Delete unwanted favorites
+
+### TTS Favorites System
+- Save any text with specific voice combinations
+- Quick access to your most-used comments
+- Right-click to delete unwanted favorites
+- Automatically loads both text and voice when selected
+- Perfect for recurring stream interactions
+
+### Overlay Archive System
+- Every overlay is automatically saved with timestamp numbers
+- Easy to identify newest vs older overlays
+- Files saved in `saved_overlays/` directory
+- Higher numbers = newer overlays
+- Use `view_archives.py` to browse saved overlays
 
 ### Keyboard Shortcuts
 - `Ctrl + Enter` - Generate speech
@@ -111,6 +137,7 @@ python voicemaster_gui.py
 VoiceMaster Pro/
 ├── voicemaster_gui.py      # Main GUI application
 ├── app_logic.py           # Core TTS functionality
+├── view_archives.py       # Overlay archive viewer
 ├── requirements.txt       # Python dependencies
 ├── setup.bat             # Automated setup script
 ├── git_setup.bat         # Git repository setup script
@@ -119,8 +146,11 @@ VoiceMaster Pro/
 ├── .env                  # Environment variables (API key) - Git ignored
 ├── .gitignore           # Git ignore rules
 ├── README.md            # This documentation
-├── overlay.html          # OBS overlay file
+├── overlay.html          # Current OBS overlay file
+├── tts_favorites.json    # Saved favorites database - Git ignored
 ├── generated_audio/      # Generated audio files - Git ignored
+├── saved_overlays/       # Archived overlay files - Git ignored
+├── tts_favorites/        # Favorites audio cache - Git ignored
 └── .venv/               # Virtual environment - Git ignored
 ```
 

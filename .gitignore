@@ -34,9 +34,14 @@ MANIFEST
 
 # Generated Audio Files (too large for Git)
 generated_audio/
+saved_overlays/
+tts_favorites/
 *.mp3
 *.wav
 *.m4a
+
+# TTS Favorites Database
+tts_favorites.json
 
 # IDE and Editor Files
 .vscode/

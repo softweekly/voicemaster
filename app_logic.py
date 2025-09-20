@@ -1,5 +1,7 @@
 import requests
 import os
+import json
+import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -9,10 +11,15 @@ load_dotenv()
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY") # Get API key from .env
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM" # Rachel voice from ElevenLabs
 OUTPUT_AUDIO_DIR = "generated_audio"
+SAVED_OVERLAYS_DIR = "saved_overlays"
+FAVORITES_DIR = "tts_favorites"
 OVERLAY_HTML_PATH = "overlay.html" # This is the file OBS will read
+FAVORITES_JSON_PATH = "tts_favorites.json" # Store favorites data
 
 # Create directories if they don't exist
 os.makedirs(OUTPUT_AUDIO_DIR, exist_ok=True)
+os.makedirs(SAVED_OVERLAYS_DIR, exist_ok=True)
+os.makedirs(FAVORITES_DIR, exist_ok=True)
 
 # --- Eleven Labs API Functions ---
 
@@ -94,11 +101,10 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3"):
         print(f"Error during text-to-speech: {e}")
         return None
 
-# --- OBS Overlay Generation Function ---
-
-def generate_overlay_html(main_text, sub_text=""):
+def generate_overlay_html(main_text, sub_text="", save_archive=True):
     """
     Generates or updates the HTML file for the OBS overlay.
+    Optionally saves numbered archive copies.
     """
     html_content = f"""
 <!DOCTYPE html>
@@ -150,11 +156,110 @@ def generate_overlay_html(main_text, sub_text=""):
 </html>
     """
     try:
+        # Write the current overlay file
         with open(OVERLAY_HTML_PATH, "w", encoding="utf-8") as f:
             f.write(html_content)
         print(f"Overlay HTML updated: {OVERLAY_HTML_PATH}")
+        
+        # Save numbered archive copy if requested
+        if save_archive:
+            timestamp = int(time.time())
+            archive_filename = f"overlay_{timestamp:010d}.html"
+            archive_path = os.path.join(SAVED_OVERLAYS_DIR, archive_filename)
+            
+            with open(archive_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            print(f"Overlay archived: {archive_path}")
+            
     except IOError as e:
         print(f"Error writing overlay HTML: {e}")
+
+
+def load_favorites():
+    """Load TTS favorites from JSON file."""
+    try:
+        if os.path.exists(FAVORITES_JSON_PATH):
+            with open(FAVORITES_JSON_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading favorites: {e}")
+    return []
+
+
+def save_favorites(favorites):
+    """Save TTS favorites to JSON file."""
+    try:
+        with open(FAVORITES_JSON_PATH, 'w', encoding='utf-8') as f:
+            json.dump(favorites, f, indent=2, ensure_ascii=False)
+        print(f"Favorites saved to {FAVORITES_JSON_PATH}")
+    except Exception as e:
+        print(f"Error saving favorites: {e}")
+
+
+def add_favorite(text, voice_id, voice_name, audio_filename=None):
+    """Add a TTS comment to favorites."""
+    favorites = load_favorites()
+    
+    # Generate unique ID for this favorite
+    favorite_id = int(time.time())
+    
+    favorite = {
+        "id": favorite_id,
+        "text": text,
+        "voice_id": voice_id,
+        "voice_name": voice_name,
+        "audio_filename": audio_filename,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": favorite_id
+    }
+    
+    favorites.append(favorite)
+    save_favorites(favorites)
+    
+    print(f"Added favorite: '{text[:50]}...' with voice '{voice_name}'")
+    return favorite_id
+
+
+def get_favorite_phrases():
+    """Get all favorite phrases for quick access."""
+    favorites = load_favorites()
+    # Sort by timestamp (newest first)
+    favorites.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+    return favorites
+
+
+def delete_favorite(favorite_id):
+    """Delete a favorite by ID."""
+    favorites = load_favorites()
+    favorites = [f for f in favorites if f.get('id') != favorite_id]
+    save_favorites(favorites)
+    print(f"Deleted favorite with ID: {favorite_id}")
+
+
+def get_overlay_archive_list():
+    """Get list of archived overlay files, sorted by number (newest first)."""
+    try:
+        files = []
+        for filename in os.listdir(SAVED_OVERLAYS_DIR):
+            if filename.startswith('overlay_') and filename.endswith('.html'):
+                timestamp = filename.replace('overlay_', '').replace('.html', '')
+                try:
+                    timestamp_int = int(timestamp)
+                    files.append({
+                        'filename': filename,
+                        'timestamp': timestamp_int,
+                        'path': os.path.join(SAVED_OVERLAYS_DIR, filename),
+                        'created': time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp_int))
+                    })
+                except ValueError:
+                    continue
+        
+        # Sort by timestamp (newest first)
+        files.sort(key=lambda x: x['timestamp'], reverse=True)
+        return files
+    except Exception as e:
+        print(f"Error getting overlay archive list: {e}")
+        return []
 
 
 # --- Example Usage (How you'd integrate this in your app's main loop/GUI actions) ---

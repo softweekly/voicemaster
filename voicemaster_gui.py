@@ -3,7 +3,9 @@ from tkinter import ttk, messagebox, scrolledtext
 import threading
 import os
 import pygame
-from app_logic import get_available_voices, text_to_speech, generate_overlay_html
+from app_logic import (get_available_voices, text_to_speech, generate_overlay_html, 
+                      add_favorite, get_favorite_phrases, delete_favorite, 
+                      get_overlay_archive_list)
 import time
 
 class VoiceMasterGUI:
@@ -167,37 +169,52 @@ class VoiceMasterGUI:
         quick_frame = tk.Frame(self.root, bg='#2c3e50')
         quick_frame.pack(pady=5, padx=20, fill='x')
         
+        # Quick phrases header with refresh button
+        header_frame = tk.Frame(quick_frame, bg='#2c3e50')
+        header_frame.pack(fill='x')
+        
         tk.Label(
-            quick_frame, 
-            text="Quick Phrases:", 
+            header_frame, 
+            text="Quick Phrases & Favorites:", 
             font=('Arial', 10, 'bold'),
             fg='#ecf0f1', 
             bg='#2c3e50'
-        ).pack(anchor='w')
+        ).pack(side='left')
         
-        quick_buttons_frame = tk.Frame(quick_frame, bg='#2c3e50')
-        quick_buttons_frame.pack(fill='x', pady=5)
+        # Add to favorites button
+        self.add_fav_btn = tk.Button(
+            header_frame,
+            text="💾 Save as Favorite",
+            font=('Arial', 8),
+            bg='#f39c12',
+            fg='white',
+            relief='flat',
+            padx=8,
+            pady=2,
+            command=self.add_current_to_favorites
+        )
+        self.add_fav_btn.pack(side='right', padx=5)
         
-        quick_phrases = [
-            "Hello everyone, welcome to the stream!",
-            "Thanks for following!",
-            "Let's get started with today's content.",
-            "Don't forget to like and subscribe!"
-        ]
+        # Refresh favorites button
+        refresh_fav_btn = tk.Button(
+            header_frame,
+            text="🔄",
+            font=('Arial', 8),
+            bg='#9b59b6',
+            fg='white',
+            relief='flat',
+            padx=5,
+            pady=2,
+            command=self.refresh_quick_phrases
+        )
+        refresh_fav_btn.pack(side='right', padx=2)
         
-        for i, phrase in enumerate(quick_phrases):
-            btn = tk.Button(
-                quick_buttons_frame,
-                text=phrase[:30] + "..." if len(phrase) > 30 else phrase,
-                font=('Arial', 9),
-                bg='#7f8c8d',
-                fg='white',
-                relief='flat',
-                padx=5,
-                pady=3,
-                command=lambda p=phrase: self.set_quick_text(p)
-            )
-            btn.pack(side='left', padx=2, fill='x', expand=True)
+        # Scrollable frame for quick phrases
+        self.quick_buttons_frame = tk.Frame(quick_frame, bg='#2c3e50')
+        self.quick_buttons_frame.pack(fill='x', pady=5)
+        
+        # Load initial quick phrases
+        self.refresh_quick_phrases()
         
         # Hotkeys info
         info_frame = tk.Frame(self.root, bg='#2c3e50')
@@ -280,14 +297,15 @@ class VoiceMasterGUI:
                 if audio_file:
                     self.current_audio_file = audio_file
                     
-                    # Update overlay
+                    # Update overlay with archive
                     generate_overlay_html(
                         main_text=f"🎤 {self.selected_voice_name}",
-                        sub_text="TTS Active"
+                        sub_text="TTS Active",
+                        save_archive=True
                     )
                     
                     # Update UI in main thread
-                    self.root.after(0, lambda: self.on_generation_success(audio_file))
+                    self.root.after(0, lambda: self.on_generation_success(audio_file, filename))
                 else:
                     self.root.after(0, lambda: self.on_generation_error("Failed to generate audio"))
                     
@@ -296,7 +314,7 @@ class VoiceMasterGUI:
         
         threading.Thread(target=generate_thread, daemon=True).start()
     
-    def on_generation_success(self, audio_file):
+    def on_generation_success(self, audio_file, filename=None):
         """Handle successful speech generation"""
         self.generate_btn.config(state='normal')
         self.play_btn.config(state='normal')
@@ -336,6 +354,119 @@ class VoiceMasterGUI:
     def update_status(self, message, color='#95a5a6'):
         """Update status label"""
         self.status_label.config(text=message, fg=color)
+    
+    def refresh_quick_phrases(self):
+        """Refresh the quick phrases section with default and favorite phrases"""
+        # Clear existing buttons
+        for widget in self.quick_buttons_frame.winfo_children():
+            widget.destroy()
+        
+        # Default quick phrases
+        default_phrases = [
+            "Hello everyone, welcome to the stream!",
+            "Thanks for following!",
+            "Let's get started with today's content.",
+            "Don't forget to like and subscribe!"
+        ]
+        
+        # Add default phrase buttons
+        for i, phrase in enumerate(default_phrases):
+            btn = tk.Button(
+                self.quick_buttons_frame,
+                text=phrase[:25] + "..." if len(phrase) > 25 else phrase,
+                font=('Arial', 8),
+                bg='#7f8c8d',
+                fg='white',
+                relief='flat',
+                padx=3,
+                pady=2,
+                command=lambda p=phrase: self.set_quick_text(p)
+            )
+            btn.pack(side='left', padx=1, fill='x', expand=True)
+        
+        # Add separator
+        separator = tk.Label(
+            self.quick_buttons_frame,
+            text="|",
+            font=('Arial', 10),
+            fg='#95a5a6',
+            bg='#2c3e50'
+        )
+        separator.pack(side='left', padx=5)
+        
+        # Load and add favorite phrases (limit to 6 most recent)
+        favorites = get_favorite_phrases()[:6]
+        for fav in favorites:
+            display_text = f"🎤 {fav['text'][:20]}..." if len(fav['text']) > 20 else f"🎤 {fav['text']}"
+            btn = tk.Button(
+                self.quick_buttons_frame,
+                text=display_text,
+                font=('Arial', 8),
+                bg='#e67e22',
+                fg='white',
+                relief='flat',
+                padx=3,
+                pady=2,
+                command=lambda f=fav: self.load_favorite(f)
+            )
+            btn.pack(side='left', padx=1)
+            
+            # Add right-click context menu for deletion
+            btn.bind("<Button-3>", lambda e, f_id=fav['id']: self.show_favorite_context_menu(e, f_id))
+    
+    def set_quick_text(self, text):
+        """Set quick phrase in text input"""
+        self.text_input.delete(1.0, tk.END)
+        self.text_input.insert(1.0, text)
+    
+    def add_current_to_favorites(self):
+        """Add current text and voice to favorites"""
+        text = self.text_input.get(1.0, tk.END).strip()
+        
+        if not text:
+            messagebox.showwarning("Warning", "Please enter some text first!")
+            return
+        
+        if not self.selected_voice_id:
+            messagebox.showwarning("Warning", "Please select a voice first!")
+            return
+        
+        try:
+            add_favorite(text, self.selected_voice_id, self.selected_voice_name)
+            self.refresh_quick_phrases()
+            self.update_status(f"Added '{text[:30]}...' to favorites", '#27ae60')
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add favorite:\n{str(e)}")
+    
+    def load_favorite(self, favorite):
+        """Load a favorite phrase and set voice"""
+        # Set the text
+        self.text_input.delete(1.0, tk.END)
+        self.text_input.insert(1.0, favorite['text'])
+        
+        # Try to set the voice if it exists
+        for i, voice in enumerate(self.voices):
+            if voice['voice_id'] == favorite['voice_id']:
+                self.voice_combo.current(i)
+                self.on_voice_selected(None)
+                break
+        
+        self.update_status(f"Loaded favorite: '{favorite['voice_name']}' voice", '#3498db')
+    
+    def show_favorite_context_menu(self, event, favorite_id):
+        """Show context menu for favorite deletion"""
+        context_menu = tk.Menu(self.root, tearoff=0)
+        context_menu.add_command(label="Delete Favorite", command=lambda: self.delete_favorite_by_id(favorite_id))
+        context_menu.tk_popup(event.x_root, event.y_root)
+    
+    def delete_favorite_by_id(self, favorite_id):
+        """Delete a favorite by ID"""
+        try:
+            delete_favorite(favorite_id)
+            self.refresh_quick_phrases()
+            self.update_status("Favorite deleted", '#e74c3c')
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete favorite:\n{str(e)}")
 
 def main():
     # Create and run the GUI
