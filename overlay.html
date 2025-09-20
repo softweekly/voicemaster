@@ -1,0 +1,49 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceMaster Overlay</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Hide scrollbars if content overflows */
+            background-color: rgba(0, 0, 0, 0); /* Transparent background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7); /* Subtle shadow for readability */
+        }
+        .overlay-container {
+            position: absolute;
+            bottom: 20px; /* Adjust as needed */
+            left: 20px; /* Adjust as needed */
+            background-color: rgba(44, 62, 80, 0.7); /* Semi-transparent dark blue */
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-start;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .main-text {
+            font-size: 2em; /* Larger for main title */
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        .sub-text {
+            font-size: 1.2em; /* Smaller for additional info */
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay-container">
+        <div class="main-text">VOICEMASTER PRO: Toe</div>
+        <div class="sub-text">Custom AI Voice Active</div>
+    </div>
+</body>
+</html>
+    
