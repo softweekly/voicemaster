@@ -19,6 +19,9 @@ A professional Text-to-Speech application for live streaming with custom ElevenL
 - 📺 OBS overlay integration
 - 🔊 Built-in audio playback
 - 🎨 Dark theme optimized for streaming setups
+- 🎙️ **NEW: Speech-to-Clone** - Record your voice and generate it in any clone voice
+- 💾 TTS Favorites system with voice combinations
+- 📁 Automatic overlay archiving with timestamp numbering
 
 ## Setup Instructions
 
@@ -49,7 +52,15 @@ A professional Text-to-Speech application for live streaming with custom ElevenL
    - Create a virtual environment
    - Install all required dependencies from requirements.txt
 
-5. **Configure your API key**
+5. **Install Speech Recognition Dependencies (for Speech-to-Clone feature)**
+   ```
+   Double-click install_speech_deps.bat
+   ```
+   If PyAudio installation fails, you may need:
+   - Visual C++ Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+   - Or use: `pip install pipwin && pipwin install pyaudio`
+
+6. **Configure your API key**
    - Copy `.env.example` to `.env`
    - Open the `.env` file
    - Add your ElevenLabs API key:
@@ -102,11 +113,19 @@ python voicemaster_gui.py
 - **Voice Selection**: Choose from your custom ElevenLabs voices
 - **Text Input**: Enter text to convert to speech
 - **Generate Button**: Create speech (Ctrl+Enter)
+- **🎙️ Speech-to-Clone**: Record your voice and generate in selected clone voice (F3)
 - **Play/Stop**: Control audio playback (F1/F2)
 - **Quick Phrases**: Pre-made streaming messages + your saved favorites
 - **💾 Save as Favorite**: Save current text + voice combination
 - **🔄 Refresh**: Update favorites list
 - **Right-click favorites**: Delete unwanted favorites
+
+### Speech-to-Clone System
+- **🎙️ Record & Clone**: Press F3 or click Speech-to-Clone button
+- **Automatic Recognition**: Converts your speech to text using Google Speech Recognition
+- **Voice Cloning**: Generates the recognized text in your selected custom voice
+- **Perfect for Streaming**: Quickly clone your voice saying anything
+- **Real-time Process**: Record → Recognize → Generate → Play (all automatic)
 
 ### TTS Favorites System
 - Save any text with specific voice combinations
@@ -126,6 +145,7 @@ python voicemaster_gui.py
 - `Ctrl + Enter` - Generate speech
 - `F1` - Play audio
 - `F2` - Stop audio
+- `F3` - **NEW: Speech-to-Clone** (record your voice)
 
 ### OBS Integration
 - Add `overlay.html` as a Browser Source in OBS
@@ -156,9 +176,15 @@ VoiceMaster Pro/
 
 ## Dependencies
 
+**Core TTS:**
 - `requests` - HTTP requests to ElevenLabs API
 - `python-dotenv` - Environment variable management
 - `pygame` - Audio playback functionality
+
+**Speech-to-Clone Feature:**
+- `SpeechRecognition` - Speech recognition capabilities
+- `pyaudio` - Microphone audio recording
+- `pydub` - Audio processing utilities
 
 ## Troubleshooting
 

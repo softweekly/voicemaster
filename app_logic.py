@@ -2,6 +2,9 @@ import requests
 import os
 import json
 import time
+import speech_recognition as sr
+import pyaudio
+from pydub import AudioSegment
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -260,6 +263,150 @@ def get_overlay_archive_list():
     except Exception as e:
         print(f"Error getting overlay archive list: {e}")
         return []
+
+
+# --- Speech Recognition Functions ---
+
+def get_microphone_list():
+    """Get list of available microphones."""
+    try:
+        mics = []
+        for i in range(pyaudio.PyAudio().get_device_count()):
+            device_info = pyaudio.PyAudio().get_device_info_by_index(i)
+            if device_info['maxInputChannels'] > 0:
+                mics.append({
+                    'index': i,
+                    'name': device_info['name'],
+                    'channels': device_info['maxInputChannels']
+                })
+        return mics
+    except Exception as e:
+        print(f"Error getting microphone list: {e}")
+        return []
+
+
+def record_audio_from_microphone(duration=5, mic_index=None):
+    """Record audio from microphone for specified duration."""
+    try:
+        r = sr.Recognizer()
+        
+        # Use specific microphone or default
+        if mic_index is not None:
+            mic = sr.Microphone(device_index=mic_index)
+        else:
+            mic = sr.Microphone()
+        
+        print(f"Recording for {duration} seconds...")
+        
+        with mic as source:
+            # Adjust for ambient noise
+            r.adjust_for_ambient_noise(source, duration=0.5)
+            print("🎤 Recording started...")
+            
+            # Record audio
+            audio = r.listen(source, timeout=duration, phrase_time_limit=duration)
+            
+        print("✅ Recording completed!")
+        return audio
+        
+    except Exception as e:
+        print(f"Error recording audio: {e}")
+        return None
+
+
+def record_until_silence(mic_index=None, silence_threshold=1.0):
+    """Record audio until silence is detected."""
+    try:
+        r = sr.Recognizer()
+        
+        # Use specific microphone or default
+        if mic_index is not None:
+            mic = sr.Microphone(device_index=mic_index)
+        else:
+            mic = sr.Microphone()
+        
+        print("🎤 Recording... (speak now, will stop automatically)")
+        
+        with mic as source:
+            # Adjust for ambient noise
+            r.adjust_for_ambient_noise(source, duration=0.5)
+            
+            # Record with automatic silence detection
+            audio = r.listen(source, timeout=10, phrase_time_limit=10)
+            
+        print("✅ Recording completed!")
+        return audio
+        
+    except sr.WaitTimeoutError:
+        print("⏰ Recording timed out")
+        return None
+    except Exception as e:
+        print(f"Error recording audio: {e}")
+        return None
+
+
+def speech_to_text(audio_data, engine="google"):
+    """Convert recorded audio to text using speech recognition."""
+    if audio_data is None:
+        return None
+        
+    try:
+        r = sr.Recognizer()
+        
+        if engine == "google":
+            # Use Google Speech Recognition (free, but requires internet)
+            text = r.recognize_google(audio_data)
+        elif engine == "whisper":
+            # Use OpenAI Whisper (more accurate, works offline if installed)
+            text = r.recognize_whisper(audio_data)
+        else:
+            # Default to Google
+            text = r.recognize_google(audio_data)
+            
+        print(f"🎯 Recognized text: '{text}'")
+        return text
+        
+    except sr.UnknownValueError:
+        print("❌ Could not understand audio")
+        return None
+    except sr.RequestError as e:
+        print(f"❌ Error with speech recognition service: {e}")
+        return None
+    except Exception as e:
+        print(f"❌ Error in speech recognition: {e}")
+        return None
+
+
+def speech_to_cloned_voice(duration=5, voice_id=None, mic_index=None, filename=None):
+    """Complete pipeline: Record speech -> Convert to text -> Generate with cloned voice."""
+    try:
+        # Step 1: Record audio
+        print("🎤 Starting speech-to-clone pipeline...")
+        audio_data = record_audio_from_microphone(duration, mic_index)
+        
+        if audio_data is None:
+            return None, None
+            
+        # Step 2: Convert to text
+        print("🔄 Converting speech to text...")
+        text = speech_to_text(audio_data)
+        
+        if text is None:
+            return None, None
+            
+        # Step 3: Generate speech with cloned voice
+        print(f"🎭 Generating cloned speech: '{text}'")
+        if filename is None:
+            timestamp = int(time.time())
+            filename = f"cloned_speech_{timestamp}.mp3"
+            
+        audio_file = text_to_speech(text, voice_id, filename)
+        
+        return text, audio_file
+        
+    except Exception as e:
+        print(f"Error in speech-to-clone pipeline: {e}")
+        return None, None
 
 
 # --- Example Usage (How you'd integrate this in your app's main loop/GUI actions) ---

@@ -5,7 +5,8 @@ import os
 import pygame
 from app_logic import (get_available_voices, text_to_speech, generate_overlay_html, 
                       add_favorite, get_favorite_phrases, delete_favorite, 
-                      get_overlay_archive_list)
+                      get_overlay_archive_list, speech_to_cloned_voice,
+                      get_microphone_list, record_until_silence, speech_to_text)
 import time
 
 class VoiceMasterGUI:
@@ -23,6 +24,8 @@ class VoiceMasterGUI:
         self.selected_voice_id = None
         self.selected_voice_name = None
         self.current_audio_file = None
+        self.is_recording = False
+        self.microphones = []
         
         # Create GUI elements
         self.create_widgets()
@@ -34,6 +37,7 @@ class VoiceMasterGUI:
         self.root.bind('<Control-Return>', lambda e: self.generate_speech())
         self.root.bind('<F1>', lambda e: self.play_audio())
         self.root.bind('<F2>', lambda e: self.stop_audio())
+        self.root.bind('<F3>', lambda e: self.start_speech_to_clone())
         
     def create_widgets(self):
         # Main title
@@ -120,6 +124,20 @@ class VoiceMasterGUI:
             command=self.generate_speech
         )
         self.generate_btn.pack(side='left', padx=5)
+        
+        # Microphone button (Speech-to-Clone)
+        self.mic_btn = tk.Button(
+            button_frame,
+            text="🎙️ Speech-to-Clone (F3)",
+            font=('Arial', 11, 'bold'),
+            bg='#e74c3c',
+            fg='white',
+            relief='flat',
+            padx=15,
+            pady=10,
+            command=self.start_speech_to_clone
+        )
+        self.mic_btn.pack(side='left', padx=5)
         
         # Play button
         self.play_btn = tk.Button(
@@ -220,7 +238,7 @@ class VoiceMasterGUI:
         info_frame = tk.Frame(self.root, bg='#2c3e50')
         info_frame.pack(pady=5, padx=20, fill='x')
         
-        info_text = "Hotkeys: Ctrl+Enter = Generate | F1 = Play | F2 = Stop"
+        info_text = "Hotkeys: Ctrl+Enter = Generate | F1 = Play | F2 = Stop | F3 = Speech-to-Clone"
         tk.Label(
             info_frame,
             text=info_text,
@@ -467,6 +485,90 @@ class VoiceMasterGUI:
             self.update_status("Favorite deleted", '#e74c3c')
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete favorite:\n{str(e)}")
+    
+    def start_speech_to_clone(self):
+        """Start the speech-to-clone process"""
+        if not self.selected_voice_id:
+            messagebox.showwarning("Warning", "Please select a voice first!")
+            return
+        
+        if self.is_recording:
+            messagebox.showinfo("Info", "Already recording! Please wait...")
+            return
+        
+        # Change button state
+        self.mic_btn.config(
+            text="🎙️ Recording... (speak now)",
+            bg='#c0392b',
+            state='disabled'
+        )
+        self.is_recording = True
+        self.update_status("🎙️ Recording your voice... speak now!", '#e74c3c')
+        
+        # Start recording in separate thread
+        def record_thread():
+            try:
+                # Record speech and convert to cloned voice
+                text, audio_file = speech_to_cloned_voice(
+                    duration=10,  # Max 10 seconds
+                    voice_id=self.selected_voice_id,
+                    mic_index=None  # Use default microphone
+                )
+                
+                # Update UI in main thread
+                self.root.after(0, lambda: self.on_speech_to_clone_complete(text, audio_file))
+                
+            except Exception as e:
+                self.root.after(0, lambda: self.on_speech_to_clone_error(str(e)))
+        
+        threading.Thread(target=record_thread, daemon=True).start()
+    
+    def on_speech_to_clone_complete(self, text, audio_file):
+        """Handle completed speech-to-clone process"""
+        # Reset button state
+        self.mic_btn.config(
+            text="🎙️ Speech-to-Clone (F3)",
+            bg='#e74c3c',
+            state='normal'
+        )
+        self.is_recording = False
+        
+        if text and audio_file:
+            # Set the recognized text in the input field
+            self.text_input.delete(1.0, tk.END)
+            self.text_input.insert(1.0, text)
+            
+            # Set the current audio file for playback
+            self.current_audio_file = audio_file
+            self.play_btn.config(state='normal')
+            self.stop_btn.config(state='normal')
+            
+            # Update overlay
+            generate_overlay_html(
+                main_text=f"🎭 {self.selected_voice_name} (Cloned)",
+                sub_text=f"'{text[:50]}{'...' if len(text) > 50 else ''}'"
+            )
+            
+            self.update_status(f"✅ Speech cloned: '{text[:30]}{'...' if len(text) > 30 else ''}'", '#27ae60')
+            
+            # Auto-play the cloned speech
+            self.play_audio()
+            
+        else:
+            self.update_status("❌ Speech-to-clone failed. Try speaking clearly.", '#e74c3c')
+    
+    def on_speech_to_clone_error(self, error_msg):
+        """Handle speech-to-clone error"""
+        # Reset button state
+        self.mic_btn.config(
+            text="🎙️ Speech-to-Clone (F3)",
+            bg='#e74c3c',
+            state='normal'
+        )
+        self.is_recording = False
+        
+        self.update_status(f"❌ Recording error: {error_msg}", '#e74c3c')
+        messagebox.showerror("Recording Error", f"Failed to record speech:\n{error_msg}")
 
 def main():
     # Create and run the GUI
