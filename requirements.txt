@@ -4,3 +4,10 @@ pygame==2.6.1
 SpeechRecognition==3.10.4
 pyaudio==0.2.14
 pydub==0.25.1
+
+# Python 3.13 Compatibility (automatically handled by setup)
+setuptools<70
+
+# Note: For Python 3.13 compatibility, aifc, audioop, and distutils modules 
+# were removed from the standard library. The setup script automatically
+# installs compatibility packages to resolve these issues.

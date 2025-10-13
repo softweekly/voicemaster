@@ -12,6 +12,7 @@ load_dotenv()
 
 # --- Configuration ---
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY") # Get API key from .env
+USE_VOICE_SPECIFIC_SETTINGS = os.getenv("USE_VOICE_SPECIFIC_SETTINGS", "false").lower() == "true"
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM" # Rachel voice from ElevenLabs
 OUTPUT_AUDIO_DIR = "generated_audio"
 SAVED_OVERLAYS_DIR = "saved_overlays"
@@ -42,7 +43,13 @@ def get_available_voices():
         response = requests.get(url, headers=headers)
         response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
         voices_data = response.json()
+        # Commented out the raw API response debug print to reduce noise
+        # print("Raw API response:", voices_data)  # Debugging: Log the raw API response
         all_voices = voices_data.get("voices", [])
+        
+        # Debugging: Log the number of voices fetched and their categories
+        print(f"Number of voices fetched: {len(all_voices)}")
+        print("Voice categories:", [voice.get("category", "unknown") for voice in all_voices])
         
         # Filter for custom voices only (exclude premade ElevenLabs voices)
         custom_voices = []
@@ -51,11 +58,9 @@ def get_available_voices():
             category = voice.get("category", "").lower()
             sharing = voice.get("sharing", {})
             
-            is_custom = (
-                category == "cloned" or 
-                category == "custom" or
-                (sharing and sharing.get("status") == "private") or
-                (sharing and not sharing.get("public_owner_id"))  # No public owner means it's custom
+            # Simplified logic to include cloned and generated voices
+            is_custom = category in ["cloned", "generated"] or (
+                sharing and sharing.get("status") == "private"
             )
             if is_custom:
                 custom_voices.append(voice)
@@ -79,14 +84,27 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3"):
         "Content-Type": "application/json",
         "xi-api-key": ELEVENLABS_API_KEY
     }
+    
+    # Prepare the request data
     data = {
         "text": text,
-        "model_id": "eleven_monolingual_v1", # Or another model if you prefer
-        "voice_settings": {
+        "model_id": "eleven_monolingual_v1"
+    }
+    
+    # Add voice settings based on configuration
+    if USE_VOICE_SPECIFIC_SETTINGS:
+        # When USE_VOICE_SPECIFIC_SETTINGS is true, let ElevenLabs use the voice's own settings
+        # This allows each voice to use its optimal/recommended settings
+        print(f"Using voice-specific settings for voice: {voice_id}")
+        # Don't include voice_settings in the request - let ElevenLabs use the voice's defaults
+    else:
+        # Use global default settings
+        data["voice_settings"] = {
             "stability": 0.5,
             "similarity_boost": 0.75
         }
-    }
+        print("Using global voice settings")
+    
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     output_path = os.path.join(OUTPUT_AUDIO_DIR, filename)
 
