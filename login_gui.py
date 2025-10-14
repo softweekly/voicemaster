@@ -11,9 +11,33 @@ class ElevenLabsLoginGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("VoiceMaster Pro - Eleven Labs Setup")
-        self.root.geometry("500x400")
-        self.root.resizable(False, False)
+        
+        # Enable DPI awareness
+        self.setup_dpi_awareness()
+        
+        # Dynamic sizing based on screen resolution
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Calculate optimal window size
+        optimal_width = min(max(int(screen_width * 0.35), 500), 700)
+        optimal_height = min(max(int(screen_height * 0.5), 400), 600)
+        
+        self.root.geometry(f"{optimal_width}x{optimal_height}")
+        self.root.resizable(True, True)  # Allow resizing
+        self.root.minsize(450, 350)      # Set minimum size
         self.root.configure(bg='#1a1a2e')
+        
+        # Store scaling factor
+        self.scale_factor = min(optimal_width / 500, optimal_height / 400)
+        self.scale_factor = max(0.8, min(self.scale_factor, 1.3))
+        
+        # Store references to UI elements for real-time scaling
+        self.scalable_elements = {
+            'labels': [],
+            'buttons': [],
+            'entries': []
+        }
         
         # Center the window
         self.center_window()
@@ -39,6 +63,161 @@ class ElevenLabsLoginGUI:
         self.create_widgets()
         self.load_existing_credentials()
         
+        # Bind window resize events for responsive design
+        self.root.bind('<Configure>', self.on_window_resize)
+        
+        # Ensure optimal visibility on startup
+        self.ensure_optimal_visibility()
+    
+    def setup_dpi_awareness(self):
+        """Enable DPI awareness for better scaling on high-DPI displays"""
+        try:
+            if os.name == 'nt':  # Windows
+                import ctypes
+                try:
+                    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+                except:
+                    try:
+                        ctypes.windll.user32.SetProcessDPIAware()
+                    except:
+                        pass
+            else:  # Linux/Unix
+                # On Linux, scaling is usually handled by the display server
+                # But we can try to detect high-DPI displays
+                try:
+                    # Try to get DPI from tkinter
+                    self.root.update_idletasks()
+                    dpi = self.root.winfo_fpixels('1i')
+                    if dpi > 120:  # High DPI display
+                        # Adjust scale factor for high DPI
+                        self.scale_factor *= (dpi / 96)
+                except:
+                    pass  # Use default scaling
+        except:
+            pass  # DPI awareness not supported
+    
+    def scale_font_size(self, base_size):
+        """Scale font size based on screen size"""
+        return max(8, int(base_size * self.scale_factor))
+    
+    def scale_padding(self, base_padding):
+        """Scale padding based on screen size"""
+        return max(2, int(base_padding * self.scale_factor))
+    
+    def register_scalable_element(self, element, element_type, base_font_size=None):
+        """Register an element for real-time scaling"""
+        element_info = {
+            'widget': element,
+            'base_font_size': base_font_size
+        }
+        
+        if element_type not in self.scalable_elements:
+            self.scalable_elements[element_type] = []
+        
+        self.scalable_elements[element_type].append(element_info)
+    
+    def apply_real_time_scaling(self):
+        """Apply scaling changes to all registered UI elements"""
+        try:
+            # Update labels
+            for element_info in self.scalable_elements.get('labels', []):
+                widget = element_info['widget']
+                base_size = element_info.get('base_font_size', 11)
+                
+                if widget.winfo_exists():
+                    new_font_size = self.scale_font_size(base_size)
+                    current_font = widget.cget('font')
+                    
+                    if isinstance(current_font, tuple) and len(current_font) >= 2:
+                        font_family = current_font[0]
+                        font_style = current_font[2] if len(current_font) > 2 else 'normal'
+                    else:
+                        font_family, font_style = 'Segoe UI', 'normal'
+                    
+                    widget.configure(font=(font_family, new_font_size, font_style))
+            
+            # Update buttons
+            for element_info in self.scalable_elements.get('buttons', []):
+                widget = element_info['widget']
+                base_size = element_info.get('base_font_size', 11)
+                
+                if widget.winfo_exists():
+                    new_font_size = self.scale_font_size(base_size)
+                    current_font = widget.cget('font')
+                    
+                    if isinstance(current_font, tuple) and len(current_font) >= 2:
+                        font_family = current_font[0]
+                        font_style = current_font[2] if len(current_font) > 2 else 'bold'
+                    else:
+                        font_family, font_style = 'Segoe UI', 'bold'
+                    
+                    widget.configure(font=(font_family, new_font_size, font_style))
+            
+            # Update entries
+            for element_info in self.scalable_elements.get('entries', []):
+                widget = element_info['widget']
+                base_size = element_info.get('base_font_size', 11)
+                
+                if widget.winfo_exists():
+                    new_font_size = self.scale_font_size(base_size)
+                    widget.configure(font=('Segoe UI', new_font_size))
+                    
+        except Exception as e:
+            print(f"Error applying real-time scaling: {e}")
+    
+    def on_window_resize(self, event):
+        """Handle window resize events"""
+        if event.widget == self.root:
+            current_width = self.root.winfo_width()
+            current_height = self.root.winfo_height()
+            
+            new_scale_factor = min(current_width / 500, current_height / 400)
+            new_scale_factor = max(0.8, min(new_scale_factor, 1.3))
+            
+            if abs(new_scale_factor - self.scale_factor) > 0.05:
+                self.scale_factor = new_scale_factor
+                self.apply_real_time_scaling()
+    
+    def ensure_optimal_visibility(self):
+        """Ensure the login window is properly sized and visible"""
+        try:
+            self.root.update_idletasks()
+            
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            window_width = self.root.winfo_width()
+            window_height = self.root.winfo_height()
+            
+            # Ensure window fits on screen with margins
+            max_width = int(screen_width * 0.8)
+            max_height = int(screen_height * 0.8)
+            
+            final_width = min(window_width, max_width)
+            final_height = min(window_height, max_height)
+            
+            # Ensure minimum size
+            final_width = max(final_width, 450)
+            final_height = max(final_height, 350)
+            
+            if final_width != window_width or final_height != window_height:
+                self.root.geometry(f"{final_width}x{final_height}")
+                
+                # Update scale factor
+                new_scale_factor = min(final_width / 500, final_height / 400)
+                new_scale_factor = max(0.8, min(new_scale_factor, 1.3))
+                
+                if abs(new_scale_factor - self.scale_factor) > 0.05:
+                    self.scale_factor = new_scale_factor
+                    self.apply_real_time_scaling()
+            
+            # Center on screen
+            x = (screen_width - final_width) // 2
+            y = (screen_height - final_height) // 2
+            self.root.geometry(f"{final_width}x{final_height}+{x}+{y}")
+            
+        except Exception as e:
+            print(f"Error ensuring optimal visibility: {e}")
+        
     def center_window(self):
         """Center the window on screen"""
         self.root.update_idletasks()
@@ -52,50 +231,52 @@ class ElevenLabsLoginGUI:
         """Create the login interface"""
         # Main frame
         main_frame = tk.Frame(self.root, bg=self.colors['bg_primary'])
-        main_frame.pack(fill='both', expand=True, padx=30, pady=30)
+        main_frame.pack(fill='both', expand=True, padx=self.scale_padding(30), pady=self.scale_padding(30))
         
         # Title
         title_label = tk.Label(
             main_frame,
             text="VoiceMaster Pro Setup",
-            font=('Segoe UI', 20, 'bold'),
+            font=('Segoe UI', self.scale_font_size(20), 'bold'),
             fg=self.colors['text_primary'],
             bg=self.colors['bg_primary']
         )
-        title_label.pack(pady=(0, 10))
+        title_label.pack(pady=(0, self.scale_padding(10)))
+        self.register_scalable_element(title_label, 'labels', base_font_size=20)
         
         # Subtitle
         subtitle_label = tk.Label(
             main_frame,
             text="Connect your Eleven Labs account to get started",
-            font=('Segoe UI', 11),
+            font=('Segoe UI', self.scale_font_size(11)),
             fg=self.colors['text_secondary'],
             bg=self.colors['bg_primary']
         )
-        subtitle_label.pack(pady=(0, 30))
+        subtitle_label.pack(pady=(0, self.scale_padding(30)))
+        self.register_scalable_element(subtitle_label, 'labels', base_font_size=11)
         
         # Login form frame
         form_frame = tk.Frame(main_frame, bg=self.colors['bg_card'], relief='flat', bd=0)
-        form_frame.pack(fill='x', pady=20)
+        form_frame.pack(fill='both', expand=True, pady=self.scale_padding(20))
         
         # Inner padding frame
         inner_frame = tk.Frame(form_frame, bg=self.colors['bg_card'])
-        inner_frame.pack(fill='x', padx=25, pady=25)
+        inner_frame.pack(fill='both', expand=True, padx=self.scale_padding(25), pady=self.scale_padding(25))
         
         # API Key section
         api_key_label = tk.Label(
             inner_frame,
             text="Eleven Labs API Key:",
-            font=('Segoe UI', 12, 'bold'),
+            font=('Segoe UI', self.scale_font_size(12), 'bold'),
             fg=self.colors['text_primary'],
             bg=self.colors['bg_card'],
             anchor='w'
         )
-        api_key_label.pack(fill='x', pady=(0, 8))
+        api_key_label.pack(fill='x', pady=(0, self.scale_padding(8)))
         
         self.api_key_entry = tk.Entry(
             inner_frame,
-            font=('Segoe UI', 11),
+            font=('Segoe UI', self.scale_font_size(11)),
             bg=self.colors['input_bg'],
             fg=self.colors['text_primary'],
             insertbackground=self.colors['text_primary'],
@@ -103,7 +284,8 @@ class ElevenLabsLoginGUI:
             bd=0,
             show='*'  # Hide API key
         )
-        self.api_key_entry.pack(fill='x', ipady=8, pady=(0, 5))
+        self.api_key_entry.pack(fill='x', ipady=self.scale_padding(8), pady=(0, self.scale_padding(5)))
+        self.register_scalable_element(self.api_key_entry, 'entries', base_font_size=11)
         
         # Show/Hide API key button
         self.show_key_var = tk.BooleanVar()
@@ -187,11 +369,15 @@ class ElevenLabsLoginGUI:
         
     def create_modern_button(self, parent, text, command, bg_color, width=None):
         """Create a modern styled button"""
+        font_size = self.scale_font_size(11)
+        padx = self.scale_padding(15)
+        pady = self.scale_padding(8)
+        
         btn = tk.Button(
             parent,
             text=text,
             command=command,
-            font=('Segoe UI', 11, 'bold'),
+            font=('Segoe UI', font_size, 'bold'),
             bg=bg_color,
             fg='white',
             activebackground=bg_color,
@@ -211,6 +397,9 @@ class ElevenLabsLoginGUI:
         
         btn.bind("<Enter>", on_enter)
         btn.bind("<Leave>", on_leave)
+        
+        # Register for scaling
+        self.register_scalable_element(btn, 'buttons', base_font_size=font_size)
         
         return btn
     
@@ -389,12 +578,19 @@ class ElevenLabsLoginGUI:
             current_dir = Path.cwd()
             venv_python = None
             
-            # Look for virtual environment Python executable
-            possible_venv_paths = [
-                current_dir / ".venv" / "Scripts" / "python.exe",
-                current_dir / "venv" / "Scripts" / "python.exe",
-                current_dir / ".env" / "Scripts" / "python.exe"
-            ]
+            # Look for virtual environment Python executable (cross-platform)
+            if os.name == 'nt':  # Windows
+                possible_venv_paths = [
+                    current_dir / ".venv" / "Scripts" / "python.exe",
+                    current_dir / "venv" / "Scripts" / "python.exe",
+                    current_dir / ".env" / "Scripts" / "python.exe"
+                ]
+            else:  # Linux/Unix
+                possible_venv_paths = [
+                    current_dir / ".venv" / "bin" / "python",
+                    current_dir / "venv" / "bin" / "python",
+                    current_dir / ".env" / "bin" / "python"
+                ]
             
             for path in possible_venv_paths:
                 if path.exists():
@@ -403,7 +599,7 @@ class ElevenLabsLoginGUI:
             
             if not venv_python:
                 # Fallback to system python
-                venv_python = "python"
+                venv_python = "python3" if os.name != 'nt' else "python"
             
             # Launch the main GUI
             subprocess.Popen([venv_python, "voicemaster_gui.py"])

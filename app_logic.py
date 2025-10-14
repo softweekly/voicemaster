@@ -70,10 +70,87 @@ def get_available_voices():
         print(f"Error fetching voices: {e}")
         return None
 
-def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3"):
+def get_available_models():
+    """Fetches available TTS models from Eleven Labs."""
+    if not ELEVENLABS_API_KEY:
+        print("Error: ELEVENLABS_API_KEY not set.")
+        return None
+
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Accept": "application/json"
+    }
+    url = "https://api.elevenlabs.io/v1/models"
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        models_data = response.json()
+        
+        models = []
+        for model in models_data:
+            model_info = {
+                'model_id': model.get('model_id'),
+                'name': model.get('name'),
+                'description': model.get('description', ''),
+                'can_be_finetuned': model.get('can_be_finetuned', False),
+                'can_do_text_to_speech': model.get('can_do_text_to_speech', False),
+                'can_do_voice_conversion': model.get('can_do_voice_conversion', False),
+                'can_use_style': model.get('can_use_style', False),
+                'can_use_speaker_boost': model.get('can_use_speaker_boost', False),
+                'serves_pro_voices': model.get('serves_pro_voices', False),
+                'token_cost_factor': model.get('token_cost_factor', 1.0),
+                'languages': model.get('languages', [])
+            }
+            models.append(model_info)
+        
+        print(f"Found {len(models)} available models")
+        return models
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching models: {e}")
+        return None
+
+def get_voice_settings(voice_id):
+    """Get the current settings for a specific voice."""
+    if not ELEVENLABS_API_KEY:
+        print("Error: ELEVENLABS_API_KEY not set.")
+        return None
+
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Accept": "application/json"
+    }
+    url = f"https://api.elevenlabs.io/v1/voices/{voice_id}/settings"
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        settings_data = response.json()
+        
+        return {
+            'stability': settings_data.get('stability', 0.5),
+            'similarity_boost': settings_data.get('similarity_boost', 0.75),
+            'style': settings_data.get('style', 0.0),
+            'use_speaker_boost': settings_data.get('use_speaker_boost', True)
+        }
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching voice settings for {voice_id}: {e}")
+        return None
+
+def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3", 
+                   stability=None, similarity_boost=None, style=None, speed=None):
     """
     Converts text to speech using Eleven Labs API and saves it to a file.
     Returns the path to the saved audio file.
+    
+    Args:
+        text: Text to convert to speech
+        voice_id: ElevenLabs voice ID to use
+        filename: Output filename
+        stability: Voice stability (0.0 to 1.0, None for default)
+        similarity_boost: Voice similarity boost (0.0 to 1.0, None for default)
+        style: Style exaggeration (0.0 to 1.0, None for default)
+        speed: Speech speed (0.25 to 4.0, None for default)
     """
     if not ELEVENLABS_API_KEY:
         print("Error: ELEVENLABS_API_KEY not set.")
@@ -88,22 +165,35 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3"):
     # Prepare the request data
     data = {
         "text": text,
-        "model_id": "eleven_monolingual_v1"
+        "model_id": "eleven_monolingual_v2"
     }
     
-    # Add voice settings based on configuration
-    if USE_VOICE_SPECIFIC_SETTINGS:
-        # When USE_VOICE_SPECIFIC_SETTINGS is true, let ElevenLabs use the voice's own settings
-        # This allows each voice to use its optimal/recommended settings
-        print(f"Using voice-specific settings for voice: {voice_id}")
-        # Don't include voice_settings in the request - let ElevenLabs use the voice's defaults
-    else:
-        # Use global default settings
-        data["voice_settings"] = {
-            "stability": 0.5,
-            "similarity_boost": 0.75
-        }
-        print("Using global voice settings")
+    # Build voice settings - use provided parameters or defaults
+    voice_settings = {}
+    
+    # Set parameters with defaults if not provided
+    voice_settings["stability"] = stability if stability is not None else 0.5
+    voice_settings["similarity_boost"] = similarity_boost if similarity_boost is not None else 0.75
+    
+    # Add style exaggeration if supported (v2 model feature)
+    if style is not None:
+        voice_settings["style"] = style
+    
+    # Add speed parameter if provided (v2 model feature)
+    if speed is not None and speed != 1.0:
+        # Speed is applied via model settings for v2
+        data["pronunciation_dictionary_locators"] = []
+        data["seed"] = None
+        data["previous_text"] = None
+        data["next_text"] = None
+        data["previous_request_ids"] = []
+        data["next_request_ids"] = []
+        # Note: Speed control in v2 might require different approach
+        voice_settings["speaking_rate"] = speed
+    
+    # Always include voice settings (override USE_VOICE_SPECIFIC_SETTINGS for GUI control)
+    data["voice_settings"] = voice_settings
+    print(f"Using custom voice settings: {voice_settings}")
     
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     output_path = os.path.join(OUTPUT_AUDIO_DIR, filename)
