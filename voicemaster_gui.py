@@ -26,7 +26,7 @@ class VoiceMasterGUI:
         optimal_height = min(max(int(screen_height * 0.7), 600), 900)
         
         self.root.geometry(f"{optimal_width}x{optimal_height}")
-        self.root.minsize(600, 500)    # Minimum size to prevent UI breaking
+        self.root.minsize(500, 400)    # FIXED: Lower minimum size for better compatibility
         self.root.configure(bg='#1a1a2e')
         
         # Store scaling factor for responsive design
@@ -108,10 +108,19 @@ class VoiceMasterGUI:
         self.root.bind('<Control-Return>', lambda e: self.generate_speech())
         self.root.bind('<F1>', lambda e: self.play_audio())
         self.root.bind('<F2>', lambda e: self.stop_audio())
-        self.root.bind('<F3>', lambda e: self.start_speech_to_clone())
+        self.root.bind('<F3>', lambda e: self.start_speech_to_text())  # CHANGED: Updated function name
         
         # Bind window resize events for responsive design
         self.root.bind('<Configure>', self.on_window_resize)
+        
+        # Add mouse wheel scrolling support for the scrollable interface
+        def _on_mousewheel(event):
+            if hasattr(self, 'main_canvas'):
+                self.main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        self.root.bind("<MouseWheel>", _on_mousewheel)  # Windows
+        self.root.bind("<Button-4>", lambda e: self.main_canvas.yview_scroll(-1, "units") if hasattr(self, 'main_canvas') else None)  # Linux
+        self.root.bind("<Button-5>", lambda e: self.main_canvas.yview_scroll(1, "units") if hasattr(self, 'main_canvas') else None)   # Linux
     
     def setup_dpi_awareness(self):
         """Enable DPI awareness for better scaling on high-DPI displays"""
@@ -328,10 +337,32 @@ class VoiceMasterGUI:
         
     def create_widgets(self):
         print("DEBUG: Starting create_widgets")  # Debug
-        # Main container with smaller padding
-        main_container = tk.Frame(self.root, bg=self.colors['bg_primary'])
-        main_container.pack(fill='both', expand=True, padx=15, pady=10)  # Reduced padding
-        print("DEBUG: Main container created")  # Debug
+        
+        # FIXED: Create scrollable main container for any window size
+        # Create canvas and scrollbar for scrolling capability
+        self.main_canvas = tk.Canvas(self.root, bg=self.colors['bg_primary'], highlightthickness=0)
+        self.scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.main_canvas.yview)
+        self.main_canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        self.scrollbar.pack(side="right", fill="y")
+        self.main_canvas.pack(side="left", fill="both", expand=True)
+        
+        # Create the scrollable frame
+        main_container = tk.Frame(self.main_canvas, bg=self.colors['bg_primary'])
+        self.canvas_window = self.main_canvas.create_window((0, 0), window=main_container, anchor="nw")
+        
+        # Configure scroll region when content changes
+        def configure_scroll_region(event):
+            self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
+            # Also update the canvas window width to match canvas width
+            canvas_width = self.main_canvas.winfo_width()
+            self.main_canvas.itemconfig(self.canvas_window, width=canvas_width)
+        
+        main_container.bind("<Configure>", configure_scroll_region)
+        self.main_canvas.bind("<Configure>", lambda e: self.main_canvas.itemconfig(self.canvas_window, width=e.width))
+        
+        print("DEBUG: Scrollable container created")  # Debug
         
         # Header section - more compact
         header_frame = tk.Frame(main_container, bg=self.colors['bg_primary'])
@@ -639,11 +670,11 @@ class VoiceMasterGUI:
         self.generate_btn.pack(side='left', padx=(0, 8))
         print("DEBUG: Generate Speech button created and packed")  # Debug
         
-        # Speech-to-Clone button - smaller
+        # Speech-to-Text button (RENAMED from Clone)
         self.mic_btn = self.create_modern_button(
             buttons_frame,
-            text="🎙️ Clone",  # Shorter text
-            command=self.start_speech_to_clone,
+            text="🎙️ Dictate",  # CHANGED: More accurate description
+            command=self.start_speech_to_text,  # CHANGED: New function name
             bg_color='#00ff00',  # Bright green
             hover_color='#e67e22'
         )
@@ -746,7 +777,7 @@ class VoiceMasterGUI:
         footer_frame = tk.Frame(main_container, bg=self.colors['bg_primary'])
         footer_frame.pack(fill='x', pady=(10, 0))  # Reduced spacing
         
-        info_text = "⌨️ Hotkeys: Ctrl+Enter = Generate | F1 = Play | F2 = Stop | F3 = Speech-to-Clone"
+        info_text = "⌨️ Hotkeys: Ctrl+Enter = Generate | F1 = Play | F2 = Stop | F3 = Dictate"
         info_label = tk.Label(
             footer_frame,
             text=info_text,
@@ -1045,15 +1076,13 @@ class VoiceMasterGUI:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete favorite:\n{str(e)}")
     
-    def start_speech_to_clone(self):
-        """Start the speech-to-clone process"""
-        if not self.selected_voice_id:
-            messagebox.showwarning("Warning", "Please select a voice first!")
-            return
-        
+    def start_speech_to_text(self):
+        """Start speech-to-text dictation (RENAMED from speech-to-clone)"""
         if self.is_recording:
             messagebox.showinfo("Info", "Already recording! Please wait...")
             return
+        
+        # No need to check voice selection for dictation
         
         # Change button state
         self.mic_btn.config(
@@ -1062,66 +1091,62 @@ class VoiceMasterGUI:
             state='disabled'
         )
         self.is_recording = True
-        self.update_status("Recording your voice... speak now!")
+        self.update_status("Recording for dictation... speak now!")
         
         # Start recording in separate thread
         def record_thread():
             try:
-                # Record speech and convert to cloned voice
-                text, audio_file = speech_to_cloned_voice(
+                # CHANGED: Only do speech-to-text, no voice cloning
+                transcribed_text = speech_to_text(
                     duration=10,  # Max 10 seconds
-                    voice_id=self.selected_voice_id,
                     mic_index=None  # Use default microphone
                 )
                 
                 # Update UI in main thread
-                self.root.after(0, lambda: self.on_speech_to_clone_complete(text, audio_file))
+                self.root.after(0, lambda: self.on_speech_to_text_complete(transcribed_text))
                 
             except Exception as e:
-                self.root.after(0, lambda: self.on_speech_to_clone_error(str(e)))
+                self.root.after(0, lambda: self.on_speech_to_text_error(str(e)))
         
         threading.Thread(target=record_thread, daemon=True).start()
     
-    def on_speech_to_clone_complete(self, text, audio_file):
-        """Handle completed speech-to-clone process"""
+    def on_speech_to_text_complete(self, transcribed_text):
+        """Handle completed speech-to-text dictation"""
         # Reset button state
         self.mic_btn.config(
-            text="🎙️ Speech-to-Clone (F3)",
-            bg='#e74c3c',
+            text="🎙️ Dictate (F3)",  # CHANGED: Updated button text
+            bg='#00ff00',  # Green back to normal
             state='normal'
         )
         self.is_recording = False
         
-        if text and audio_file:
+        if transcribed_text:
+            # CHANGED: Only handle text, no audio file
             # Set the recognized text in the input field
             self.text_input.delete(1.0, tk.END)
-            self.text_input.insert(1.0, text)
+            self.text_input.insert(1.0, transcribed_text)
             
-            # Set the current audio file for playback
-            self.current_audio_file = audio_file
-            self.play_btn.config(state='normal')
-            self.stop_btn.config(state='normal')
+            # REMOVED: No audio file handling since we're just doing dictation
             
             # Update overlay
             generate_overlay_html(
-                main_text=f"🎭 {self.selected_voice_name} (Cloned)",
-                sub_text=f"'{text[:50]}{'...' if len(text) > 50 else ''}'"
+                main_text="�️ Dictation Complete",
+                sub_text=f"'{transcribed_text[:50]}{'...' if len(transcribed_text) > 50 else ''}'"
             )
             
-            self.update_status(f"Speech cloned: '{text[:30]}{'...' if len(text) > 30 else ''}'")
+            self.update_status(f"Dictated: '{transcribed_text[:30]}{'...' if len(transcribed_text) > 30 else ''}'")
             
-            # Auto-play the cloned speech
-            self.play_audio()
+            # REMOVED: No auto-play since we're just putting text in the input
             
         else:
-            self.update_status("Speech-to-clone failed. Try speaking clearly.")
+            self.update_status("Speech-to-text failed. Try speaking clearly.")
     
-    def on_speech_to_clone_error(self, error_msg):
-        """Handle speech-to-clone error"""
+    def on_speech_to_text_error(self, error_msg):
+        """Handle speech-to-text error"""
         # Reset button state
         self.mic_btn.config(
-            text="🎙️ Speech-to-Clone (F3)",
-            bg='#e74c3c',
+            text="🎙️ Dictate (F3)",  # CHANGED: Updated button text
+            bg='#00ff00',  # Green
             state='normal'
         )
         self.is_recording = False

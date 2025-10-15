@@ -165,7 +165,7 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3",
     # Prepare the request data
     data = {
         "text": text,
-        "model_id": "eleven_monolingual_v2"
+        "model_id": "eleven_monolingual_v1"  # FIXED: Back to v1 model that works
     }
     
     # Build voice settings - use provided parameters or defaults
@@ -179,27 +179,25 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3",
     if style is not None:
         voice_settings["style"] = style
     
-    # Add speed parameter if provided (v2 model feature)
-    if speed is not None and speed != 1.0:
-        # Speed is applied via model settings for v2
-        data["pronunciation_dictionary_locators"] = []
-        data["seed"] = None
-        data["previous_text"] = None
-        data["next_text"] = None
-        data["previous_request_ids"] = []
-        data["next_request_ids"] = []
-        # Note: Speed control in v2 might require different approach
-        voice_settings["speaking_rate"] = speed
+    # Note: Speed control may not be supported via voice_settings in current API
+    # Removing speed parameter temporarily to fix generation issues
     
     # Always include voice settings (override USE_VOICE_SPECIFIC_SETTINGS for GUI control)
     data["voice_settings"] = voice_settings
     print(f"Using custom voice settings: {voice_settings}")
+    print(f"Request data: {data}")  # Debug: show full request
     
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     output_path = os.path.join(OUTPUT_AUDIO_DIR, filename)
 
     try:
+        print(f"Making request to: {url}")  # Debug: show URL
         response = requests.post(url, json=data, headers=headers)
+        print(f"Response status: {response.status_code}")  # Debug: show status
+        
+        if response.status_code != 200:
+            print(f"API Error Response: {response.text}")  # Debug: show error details
+        
         response.raise_for_status()
 
         with open(output_path, 'wb') as f:
@@ -210,6 +208,8 @@ def text_to_speech(text, voice_id=VOICE_ID, filename="output.mp3",
         return output_path
     except requests.exceptions.RequestException as e:
         print(f"Error during text-to-speech: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response content: {e.response.text}")  # Debug: show error response
         return None
 
 def generate_overlay_html(main_text, sub_text="", save_archive=True):
