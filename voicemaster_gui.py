@@ -1098,7 +1098,7 @@ class VoiceMasterGUI:
             try:
                 # CHANGED: Only do speech-to-text, no voice cloning
                 transcribed_text = speech_to_text(
-                    duration=10,  # Max 10 seconds
+                    duration=30,  # Max 30 seconds (increased from 10)
                     mic_index=None  # Use default microphone
                 )
                 
